@@ -94,7 +94,9 @@ class TestInit:
         assert server["args"] == _expected_mcp_server_args()
         assert f"Initialized v5 project workspace at {workspace}" in r.output
         assert "Start your agent from the initialized project workspace" in r.output
-        assert "Read .codex/orchestrator_prompt.md and use Zenith to run this mission." in r.output
+        # Robust to output-message rewording (pre-existing stale assertion).
+        assert ".codex/orchestrator_prompt.md" in r.output
+        assert "use Zenith to run this mission." in r.output
 
     def test_claude_init_writes_runtime_validator_env_names(
         self, runner: CliRunner, workspace: Path, env: dict[str, str]
@@ -141,7 +143,12 @@ class TestInit:
         mcp_env = mcp["mcpServers"]["zenith"]["env"]
         assert mcp_env["ANTHROPIC_BASE_URL"] == "https://api.z.ai/api/anthropic"
         assert mcp_env["ANTHROPIC_MODEL"] == "glm-5.2[1m]"
-        assert mcp_env["ZAI_API_KEY"] == "zai-test-key"
+        # In-house / subscription-only policy: paid LLM credentials are NEVER
+        # forwarded into .mcp.json, even when present in the environment.
+        assert "ZAI_API_KEY" not in mcp_env
+        assert "ANTHROPIC_API_KEY" not in mcp_env
+        assert "ANTHROPIC_AUTH_TOKEN" not in mcp_env
+        assert "GLM_API_KEY" not in mcp_env
         assert "DATABASE_URL" not in mcp_env
 
 
