@@ -19,9 +19,13 @@ from .providers import (
 )
 from .storage import ProjectStore
 
+# In-house / subscription-only policy: paid LLM credentials are deliberately
+# NOT forwarded into generated .mcp.json. Workers authenticate through the
+# local `claude`/`codex` CLI subscription only. Never re-add ANTHROPIC_API_KEY,
+# ANTHROPIC_AUTH_TOKEN, GLM_API_KEY, or ZAI_API_KEY here — that would let
+# `zenith init` bake a metered/paid key into a mission. See also the matching
+# strip in acp_runner._acp_subprocess_env, which is the real enforcement point.
 MCP_ENV_FORWARD_ALLOWLIST = (
-    "ANTHROPIC_API_KEY",
-    "ANTHROPIC_AUTH_TOKEN",
     "ANTHROPIC_BASE_URL",
     "ANTHROPIC_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -31,10 +35,8 @@ MCP_ENV_FORWARD_ALLOWLIST = (
     "CLAUDE_CODE_EFFORT_LEVEL",
     "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     "CLAUDE_CODE_SUBAGENT_MODEL",
-    "GLM_API_KEY",
     "GLM_BASE_URL",
     "MAX_THINKING_TOKENS",
-    "ZAI_API_KEY",
     "ZAI_BASE_URL",
 )
 

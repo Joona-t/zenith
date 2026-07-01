@@ -121,6 +121,12 @@ def _acp_subprocess_env(provider) -> dict[str, str]:
     For hermes the env is passed through unchanged.
     """
     env = os.environ.copy()
+    # In-house / subscription-only policy (LoveSpark rule: no paid LLM API,
+    # ever). Strip any paid-endpoint credential from the worker env so ACP
+    # workers can ONLY authenticate via the local CLI subscription. Even if such
+    # a key is live in the parent shell, it never reaches a worker/validator.
+    for _paid_var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GLM_API_KEY", "ZAI_API_KEY"):
+        env.pop(_paid_var, None)
     name = getattr(provider, "name", None)
     if name == "codex":
         # Env-var hints — harmless if codex ignores them.
