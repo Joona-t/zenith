@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zenith — Interactive Harness Diagram</title>
+<style>
+  :root{
+    --bg1:#f5f8fe; --bg2:#e7edfa; --panel:#ffffff; --panel2:#f2f6fd;
+    --ink:#17233d; --ink-soft:#4a5a78; --line:#c9d6ee; --line-soft:#dce6f6;
+    --plan:#3b6fd4; --test:#2a9d8f; --work:#6d5bd0; --skill:#b45cc9;
+    --core1:#3b6fd4; --core2:#2a9d8f; --gold:#d9a441;
+    --pass:#2fa36b; --fail:#d1495b;
+    --shadow:0 10px 30px rgba(28,48,92,.12);
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono","Fira Code",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:var(--sans); color:var(--ink);
+    background:radial-gradient(1200px 700px at 70% -10%,#ffffff, transparent 60%),
+               linear-gradient(160deg,var(--bg1),var(--bg2));
+    min-height:100vh; padding:28px 20px 60px; line-height:1.55;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  header.top{display:flex;flex-wrap:wrap;align-items:center;gap:16px;margin-bottom:18px}
+  .logo{width:56px;height:56px;flex:none}
+  .title h1{margin:0;font-size:26px;letter-spacing:-.4px}
+  .title .sub{margin:2px 0 0;color:var(--ink-soft);font-size:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+  .chip{font:600 12px/1 var(--mono);color:var(--ink-soft);background:var(--panel);
+    border:1px solid var(--line);border-radius:999px;padding:8px 12px;box-shadow:var(--shadow)}
+  .chip b{color:var(--ink)}
+  .chip.win b{color:var(--pass)}
+
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 18px;
+    background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:6px}
+  nav.tabs button{font:600 13.5px var(--sans);color:var(--ink-soft);
+    background:transparent;border:0;border-radius:9px;padding:9px 15px;cursor:pointer;transition:.15s}
+  nav.tabs button:hover{color:var(--ink);background:#fff}
+  nav.tabs button.active{color:#fff;background:linear-gradient(135deg,var(--core1),var(--core2));box-shadow:var(--shadow)}
+
+  .tabpanel{display:none;animation:fade .25s ease}
+  .tabpanel.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---- Architecture stage ---- */
+  .stagebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px}
+  .btn{font:600 13px var(--sans);border:1px solid var(--line);background:var(--panel);
+    color:var(--ink);border-radius:10px;padding:9px 14px;cursor:pointer;box-shadow:var(--shadow);transition:.15s}
+  .btn:hover{border-color:var(--core1);color:var(--core1)}
+  .btn.primary{background:linear-gradient(135deg,var(--core1),var(--core2));color:#fff;border:0}
+  .btn:disabled{opacity:.45;cursor:default}
+  .hint{color:var(--ink-soft);font-size:12.5px}
+  .layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+  @media(max-width:900px){.layout{grid-template-columns:1fr}}
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:6px;box-shadow:var(--shadow);overflow:hidden}
+  svg#arch{width:100%;height:auto;display:block}
+  .node{cursor:pointer}
+  .node .box{transition:filter .2s, opacity .2s}
+  .node:hover .box{filter:brightness(1.03)}
+  .node.dim{opacity:.32;filter:grayscale(.3)}
+  .node.active .box{filter:drop-shadow(0 0 0.5px currentColor)}
+  .flow{stroke-dasharray:7 6}
+  .flow.run{animation:dash 1s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-26}}
+  .edge.hot{opacity:1 !important}
+  .edge.cool{opacity:.28}
+
+  /* ---- detail panel ---- */
+  .detail{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    padding:18px;box-shadow:var(--shadow);position:sticky;top:14px;min-height:320px}
+  .detail .kicker{font:700 11px/1 var(--mono);letter-spacing:1.5px;text-transform:uppercase}
+  .detail h3{margin:8px 0 6px;font-size:19px}
+  .detail p{margin:0 0 10px;font-size:14px;color:#26364f}
+  .detail ul{margin:6px 0 12px;padding-left:18px;font-size:13.5px;color:#26364f}
+  .detail li{margin:3px 0}
+  .swatch{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:7px;vertical-align:-1px}
+  .taglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .tag{font:600 11.5px var(--mono);border-radius:7px;padding:5px 8px;background:var(--panel2);
+    border:1px solid var(--line);color:var(--ink-soft)}
+
+  /* ---- run log ---- */
+  .log{margin-top:14px;background:#0f1830;border-radius:12px;padding:12px 14px;
+    font:12.5px/1.5 var(--mono);color:#c7d4ee;max-height:210px;overflow:auto}
+  .log .l{opacity:0;animation:pop .3s forwards}
+  .log .l b{color:#8fd7ff}
+  .log .l.pass b{color:#7ce4a8}
+  .log .l.fail b{color:#ff9db0}
+  @keyframes pop{to{opacity:1}}
+
+  /* ---- decision chips ---- */
+  .decisions{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .dchip{font:600 12.5px var(--mono);border:1px solid var(--line);background:var(--panel2);
+    border-radius:9px;padding:8px 11px;color:var(--ink)}
+  .dchip.on{background:linear-gradient(135deg,var(--core1),var(--core2));color:#fff;border:0}
+
+  /* ---- generic card grid ---- */
+  .grid{display:grid;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 6px;font-size:16px}
+  .card p{margin:0;color:#26364f;font-size:13.5px}
+  h2.sec{font-size:20px;margin:4px 0 4px}
+  .lead{color:var(--ink-soft);margin:0 0 16px;max-width:70ch}
+
+  /* ---- benchmark chart ---- */
+  .bench{display:grid;grid-template-columns:1fr;gap:10px}
+  .brow{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center}
+  .bname{font:600 13px var(--mono)}
+  .bname small{display:block;color:var(--ink-soft);font:500 11px var(--mono)}
+  .btrack{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:9px;height:38px;overflow:hidden}
+  .bfill{position:absolute;inset:0 auto 0 0;border-radius:9px 0 0 9px;display:flex;align-items:center;
+    justify-content:flex-end;padding-right:10px;color:#fff;font:700 12.5px var(--mono);transition:width .8s cubic-bezier(.2,.7,.2,1)}
+  .bcost{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:600 12px var(--mono);color:var(--ink-soft)}
+  .legend2{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-soft);margin:2px 0 14px}
+  table.cmp{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  table.cmp th,table.cmp td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  table.cmp th{font:700 12px var(--mono);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px}
+  table.cmp tr.zenith td{background:linear-gradient(90deg,rgba(59,111,212,.08),transparent)}
+  table.cmp td.num{font:600 13px var(--mono);white-space:nowrap}
+  .rankbadge{font:700 12px var(--mono);color:#fff;background:var(--ink-soft);border-radius:6px;padding:2px 7px}
+  tr.zenith .rankbadge{background:linear-gradient(135deg,var(--core1),var(--core2))}
+
+  /* ---- lifecycle state machine ---- */
+  .states{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 14px}
+  .state{font:600 13px var(--mono);padding:9px 13px;border-radius:10px;border:1px solid var(--line);background:var(--panel2)}
+  .state.term{border-style:dashed}
+  .state.run{background:linear-gradient(135deg,var(--core1),var(--core2));color:#fff;border:0}
+  .arrow{color:var(--ink-soft);font-weight:700}
+  code.k{font:600 12.5px var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 6px;color:var(--plan)}
+
+  pre{background:#0f1830;color:#dce6ff;border-radius:12px;padding:16px;overflow:auto;font:12.5px/1.6 var(--mono)}
+  pre .c{color:#7ea2d9}
+  .ok{color:var(--pass);font-weight:700}
+  .prov{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .provcard{flex:1 1 200px;border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+  .provcard h4{margin:0 0 6px;font:700 14px var(--mono)}
+  .provcard .dot{width:9px;height:9px;border-radius:50%;background:var(--pass);display:inline-block;margin-right:6px}
+  .foot{margin-top:26px;color:var(--ink-soft);font-size:12.5px;text-align:center}
+  a{color:var(--plan)}
+  @media (prefers-reduced-motion: reduce){
+    .flow.run{animation:none} .log .l{animation:none;opacity:1} .tabpanel.active{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+      <defs><radialGradient id="atom" cx="50%" cy="42%" r="60%">
+        <stop offset="0" stop-color="#dbe8ff"/><stop offset="1" stop-color="#8fb4f0"/></radialGradient></defs>
+      <circle cx="50" cy="46" r="18" fill="url(#atom)" stroke="#3b6fd4" stroke-width="1.5"/>
+      <g fill="none" stroke="#3b6fd4" stroke-width="2.4" opacity=".85">
+        <ellipse cx="50" cy="46" rx="34" ry="13"/>
+        <ellipse cx="50" cy="46" rx="34" ry="13" transform="rotate(60 50 46)"/>
+        <ellipse cx="50" cy="46" rx="34" ry="13" transform="rotate(120 50 46)"/></g>
+      <circle cx="50" cy="46" r="5" fill="#d9a441"/>
+    </svg>
+    <div class="title">
+      <h1>Zenith — the long-running agent harness</h1>
+      <p class="sub">A continuous-improvement control system that fights <em>premature completion</em>, not lack of progress. <span style="opacity:.7">Intelligent Internet, 2026</span></p>
+    </div>
+    <div class="chips">
+      <span class="chip">mean rank <b>1.38</b></span>
+      <span class="chip win">wins <b>5 / 8</b></span>
+      <span class="chip">$<b>175.68</b>/task</span>
+      <span class="chip">GPT-5.5 · <b>#1 Frontier SWE</b></span>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="arch">Architecture</button>
+    <button data-tab="why">Why it wins</button>
+    <button data-tab="brain">Orchestrator brain</button>
+    <button data-tab="use">Run /zenith</button>
+  </nav>
+
+  <!-- ================= ARCHITECTURE ================= -->
+  <section class="tabpanel active" id="tab-arch">
+    <div class="stagebar">
+      <button class="btn primary" id="play">▶ Run a mission</button>
+      <button class="btn" id="step">Step ›</button>
+      <button class="btn" id="reset" disabled>↺ Reset</button>
+      <span class="hint">Click any node for detail, or press <b>Run a mission</b> to watch the plan → execute → validate → revise loop drive a milestone to a sealed boundary.</span>
+    </div>
+    <div class="layout">
+      <div class="diagram">
+        <svg id="arch" viewBox="0 0 1240 840" role="img" aria-label="Zenith harness architecture diagram"></svg>
+      </div>
+      <aside class="detail" id="detail">
+        <div class="kicker" id="d-kicker" style="color:var(--core1)">The harness</div>
+        <h3 id="d-title">A single adaptive control loop</h3>
+        <p id="d-body">One orchestrator session reads mission state every turn and decides what to do next — spawn a worker or tester, synthesize a skill, replan, seal a milestone, or stop. Everything else on the canvas is a role the orchestrator can create, revise, or retire mid-run. <b>Click a node</b> to inspect it, or run a mission to see them fire in order.</p>
+        <div class="taglist" id="d-tags"></div>
+        <div class="log" id="log" hidden></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= WHY IT WINS ================= -->
+  <section class="tabpanel" id="tab-why">
+    <h2 class="sec">From RALPH to Zenith — five harnesses, eight long-horizon tasks</h2>
+    <p class="lead">The study isolated the control mechanisms that matter: repeated gap-finding, revisable planning, independent verification, adaptive orchestration, and stopping discipline. Bars show <b>mean rank</b> (shorter = better); the number on the right is <b>mean $ / task</b>. The lesson is <em>not</em> "more compute wins" — Zenith reaches the best rank at under half of RALPH's cost.</p>
+    <div class="legend2">
+      <span>◀ shorter bar = better average rank</span>
+      <span>Backbones: Claude <code class="k">opus-4.6-max</code> · Codex <code class="k">gpt5.4-xhigh</code> · Zenith runs a hybrid</span>
+    </div>
+    <div class="bench" id="bench"></div>
+
+    <h2 class="sec" style="margin-top:26px">The full ladder</h2>
+    <table class="cmp">
+      <thead><tr><th>Method</th><th>Rank</th><th>Cost</th><th>Wins</th><th>Main strength</th><th>Main failure mode</th></tr></thead>
+      <tbody id="cmpbody"></tbody>
+    </table>
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:18px">
+      <div class="card"><h3>Why RALPH is the baseline to beat</h3><p>RALPH reopens the gap between current state and the original request every session, so it resists false "done" labels. But it re-discovers everything from scratch each loop — expensive — and has no principled stopping rule.</p></div>
+      <div class="card"><h3>What Zenith keeps &amp; what it adds</h3><p>It keeps repeated review, but makes the loop <b>adaptive</b>: the orchestrator dynamically allocates workers, testers, reusable skills, replanning, and stopping decisions — recovering RALPH's rigor without paying for open-ended rediscovery.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= ORCHESTRATOR BRAIN ================= -->
+  <section class="tabpanel" id="tab-brain">
+    <h2 class="sec">Every milestone boundary, the orchestrator picks one move</h2>
+    <p class="lead">A single orchestrator session owns the plan, worker definitions, tester definitions, reusable skills, validation reports, issue lists, and stopping decisions. It never implements — it delegates. Click a decision to see when it fires.</p>
+    <div class="decisions" id="decisions"></div>
+    <div class="card" id="dec-detail" style="margin-top:14px"><h3 id="dec-t">Continue</h3><p id="dec-b">Runnable work remains and evidence is clean — dispatch the next task and keep the current plan.</p></div>
+
+    <h2 class="sec" style="margin-top:26px">Runtime lifecycle</h2>
+    <p class="lead">The mission is driven only through orchestrator runtime tools — state is durable, so a mission survives context resets and can run for days.</p>
+    <div class="states">
+      <span class="state">draft</span><span class="arrow">→</span>
+      <span class="state">mission_planning</span><span class="arrow">→</span>
+      <span class="state run">mission_running</span><span class="arrow">⇄</span>
+      <span class="state">attention_needed</span><span class="arrow">→</span>
+      <span class="state term">done</span><span class="arrow">/</span>
+      <span class="state term">failed</span><span class="arrow">/</span>
+      <span class="state term">aborted</span>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
+      <div class="card"><h3><code class="k">start_project</code></h3><p>No project or a draft → open the mission with a brief and a workspace dir.</p></div>
+      <div class="card"><h3><code class="k">submit_plan</code></h3><p>In planning: investigate, load the playbook, write the falsifiable contract, author the task list, then submit. Persists state — does not dispatch.</p></div>
+      <div class="card"><h3><code class="k">advance_project</code></h3><p>In running: dispatch runnable work or evaluate a ready validation gate. Call it again while work remains.</p></div>
+      <div class="card"><h3><code class="k">decide_attention</code></h3><p>Attention needed: read every open item + its evidence, decide exactly once each, then advance.</p></div>
+      <div class="card"><h3><code class="k">end_mission</code></h3><p>Quiescent + evidence supports closure → request terminal review. Stops on genuine completion, not agent overconfidence.</p></div>
+      <div class="card"><h3><code class="k">abort_project</code></h3><p>User-requested or justified cancellation — preserves the task record.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= RUN /zenith ================= -->
+  <section class="tabpanel" id="tab-use">
+    <h2 class="sec">Installed &amp; ready on this machine</h2>
+    <p class="lead">Zenith's CLI responds and the <code class="k">/zenith</code> skill is installed for every harness detected here. Type <code class="k">/zenith &lt;your instruction&gt;</code> in Claude Code or Codex and the skill hands the mission to the orchestrator.</p>
+    <div class="prov">
+      <div class="provcard"><h4><span class="dot"></span>claude</h4><p style="margin:0;font-size:13px;color:#26364f"><code class="k">.claude/skills/zenith</code><br>worker acp: <code class="k">claude-agent-acp</code><br>reads <code class="k">.claude/orchestrator_prompt.md</code></p></div>
+      <div class="provcard"><h4><span class="dot"></span>codex</h4><p style="margin:0;font-size:13px;color:#26364f"><code class="k">.codex/skills/zenith</code><br>worker acp: <code class="k">codex-acp</code><br>reads <code class="k">.codex/orchestrator_prompt.md</code></p></div>
+      <div class="provcard"><h4><span class="dot"></span>hermes</h4><p style="margin:0;font-size:13px;color:#26364f"><code class="k">.hermes/skills/zenith</code><br>worker acp: <code class="k">hermes acp</code><br>reads <code class="k">.hermes/orchestrator_prompt.md</code></p></div>
+    </div>
+
+    <h2 class="sec" style="margin-top:24px">The one-line skill contract</h2>
+    <pre>First read <span class="c">.claude/orchestrator_prompt.md</span> and treat it as your
+primary role, then use Zenith to run this mission.
+
+&lt;your instruction or query&gt;</pre>
+
+    <h2 class="sec" style="margin-top:8px">Point Zenith at a project &amp; start</h2>
+    <pre><span class="c"># from the Zenith checkout — target is your app/repo, not Zenith itself</span>
+cd ~/.hermes/zenith/zenith
+uv run zenith init --workspace-dir /path/to/your-app --agent claude
+<span class="c"># then, from the project:</span>
+cd /path/to/your-app &amp;&amp; claude   <span class="c"># (or: codex)</span>
+<span class="c"># then just:</span>  /zenith &lt;your instruction&gt;</pre>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:6px">
+      <div class="card"><h3>Use it when…</h3><p>Project-scale builds, repo-scale implementation from scratch, hard multi-session debugging, verification-heavy work, ML/optimization loops, paper reproduction — anywhere <b>premature "done"</b> is the real risk and you want separate workers + independent validators + a durable stopping rule.</p></div>
+      <div class="card"><h3>Don't use it for…</h3><p>Tiny edits, single-command tasks, or one-shot answers. The orchestration overhead only pays off when the task needs explicit milestones, parallel worker/tester loops, durable mission state, or an independent final review.</p></div>
+    </div>
+    <p class="hint" style="margin-top:14px">CLI commands: <code class="k">uv run zenith --help</code> · <code class="k">init</code> · <code class="k">inspect-tasks</code> · <code class="k">install-skills</code> · <code class="k">list-projects</code> · <code class="k">show-project</code> · <code class="k">abort-project</code></p>
+  </section>
+
+  <p class="foot">Interactive diagram of the Zenith harness · content sourced from the ii.inc technical report &amp; the repo's orchestrator prompt · rendered locally, no external calls.</p>
+</div>
+
+<script>
+"use strict";
+const SVGNS="http://www.w3.org/2000/svg";
+const MONO="'SF Mono',ui-monospace,Menlo,Consolas,monospace";
+const SANS="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif";
+function s(tag,attrs={},kids=[]){const e=document.createElementNS(SVGNS,tag);
+  for(const k in attrs)e.setAttribute(k,attrs[k]); (Array.isArray(kids)?kids:[kids]).forEach(c=>c&&e.appendChild(c)); return e;}
+function txt(x,y,str,attrs={}){const t=s("text",Object.assign({x,y},attrs)); t.textContent=str; return t;}
+
+/* ---------- node + edge data ---------- */
+const NODES = {
+  zenith:{cx:620,cy:58,w:230,h:70,color:"#3b6fd4",kind:"brand",kicker:"The harness",title:"ZENITH",
+    body:"One orchestrator session reads mission state each turn and decides the next move. It fights the dominant failure mode of long-running agents: stopping before the task is truly complete. Everything on this canvas is a role it can create, revise, or retire.",
+    tags:["continuous improvement","adaptive control","stopping discipline"]},
+  planning:{cx:250,cy:250,w:320,h:150,color:"#3b6fd4",kind:"comp",kicker:"Deep Planning",title:"DEEP PLANNING",
+    body:"Extracts falsifiable success criteria from the request, then explores project state, available tools, environment constraints, test commands, existing artifacts, and known failure modes. Output: a milestone strategy (an ordered dependency graph) plus initial worker roles, tester roles, reusable skills, and the evidence each milestone must produce.",
+    tags:["success criteria","milestone graph","initial roles","required evidence"]},
+  orchestrator:{cx:620,cy:440,w:300,h:150,color:"#2a9d8f",kind:"core",kicker:"The controller",title:"LLM ORCHESTRATOR",
+    body:"The central, variable-state controller. It owns the plan, worker & tester definitions, reusable skills, validation reports, issue lists, and stopping decisions — and it never implements. Each turn it reviews worker reports, tester reports, open issues, cost, confidence, and requirement coverage, then picks one move.",
+    tags:["continue","replan","add worker","add tester","synthesize skill","reset","next milestone","stop"]},
+  workers:{cx:250,cy:648,w:320,h:150,color:"#6d5bd0",kind:"comp",kicker:"Adaptive Workers",title:"ADAPTIVE WORKERS",
+    body:"Execute the plan feature-by-feature. Each worker is defined for one responsibility — implementation, visual fidelity, benchmark optimization, reproducibility, integration behavior, or environment setup. Workers run in their own contexts and report back; the orchestrator spawns new ones for capability gaps and retires the finished.",
+    tags:["feature-by-feature","one responsibility each","own context","mutable roster"]},
+  skills:{cx:990,cy:648,w:320,h:150,color:"#b45cc9",kind:"comp",kicker:"Adaptive Skills",title:"ADAPTIVE SKILLS",
+    body:"Successful techniques are captured and registered as reusable patterns in a shared knowledge base — setup commands, debugging patterns, benchmark rules, domain checklists. When a worker discovers an effective approach, the orchestrator elevates it into a skill available to every future milestone.",
+    tags:["shared knowledge base","reusable patterns","synthesized on discovery"]},
+  testing:{cx:990,cy:250,w:320,h:150,color:"#2a9d8f",kind:"comp",kicker:"Deep Testing",title:"DEEP TESTING",
+    body:"Two layers at every milestone boundary. ① Validation Gate: build · test · typecheck · lint. ② Validation Milestone: evidence-traced review against the acceptance criteria. A milestone seals ONLY when both pass — progress only counts at the boundary. Extra layers (regression, visual, benchmark, reproducibility, domain testers) are added per the task's risk profile.",
+    tags:["validation gate","validation milestone","evidence-traced","seal only on pass"]},
+  seal:{cx:620,cy:778,w:300,h:54,color:"#d9a441",kind:"seal",kicker:"Milestone boundary",title:"SEAL ✓ · CONTINUE · STOP",
+    body:"When both validation layers pass, the milestone seals and the orchestrator moves to the next one — looping back into planning. When no runnable work remains and evidence supports closure, it stops via an independent terminal review. When validation fails, it revises instead of continuing on invalidated assumptions.",
+    tags:["seal → next milestone","revise on fail","stop on real completion"]},
+};
+const EDGES = [
+  {id:"spine", from:"zenith:bottom", to:"orchestrator:top", label:"reads state each turn", color:"#8aa2cf"},
+  {id:"e1", path:"M 320 320 C 400 360, 430 380, 486 402", label:"① plan → execute", color:"#3b6fd4"},
+  {id:"e2", path:"M 486 478 C 420 520, 360 540, 320 574", label:"② execute · feature-by-feature", color:"#6d5bd0"},
+  {id:"e3", path:"M 410 660 C 560 690, 700 690, 830 662", label:"③ synthesize reusable skill", color:"#b45cc9", arrowFrom:false},
+  {id:"e4", path:"M 900 574 C 820 530, 780 512, 742 490", label:"skills reused", color:"#b45cc9"},
+  {id:"e5", path:"M 754 402 C 810 372, 850 350, 902 322", label:"④ validate @ milestone boundary", color:"#2a9d8f"},
+  {id:"e6", path:"M 830 224 C 640 176, 520 176, 410 214", label:"⑤ fail → revise · replan", color:"#d1495b"},
+  {id:"e7", path:"M 620 516 C 620 600, 620 680, 620 748", label:"pass → milestone sealed", color:"#2fa36b"},
+  {id:"e8", path:"M 470 772 C 250 760, 150 640, 178 326", label:"↺ next milestone", color:"#d9a441"},
+];
+/* sequential run: which edges & nodes light per step */
+const RUN = [
+  {node:"planning", edges:[], log:["Deep Planning","extract success criteria; explore project, tools, env, test commands, known failure modes"]},
+  {node:"planning", edges:[], log:["Plan submitted","milestone graph + initial worker/tester roles, skills & required evidence — enter mission_running"]},
+  {node:"orchestrator", edges:["spine","e1"], log:["Orchestrator","reads task state, dispatches runnable work for milestone 1"]},
+  {node:"workers", edges:["e2"], log:["Adaptive Workers","execute feature-by-feature; each owns one responsibility, reports back"]},
+  {node:"skills", edges:["e3"], log:["Adaptive Skills","a worker found a reliable setup/debug pattern → synthesized into a reusable skill"]},
+  {node:"testing", edges:["e4","e5"], log:["Validation Gate","build · test · typecheck · lint"]},
+  {node:"testing", edges:[], log:["Validation Milestone","evidence-traced review vs acceptance criteria …"]},
+  {node:"testing", edges:["e6"], cls:"fail", log:["FAIL — gap found","orchestrator REVISES: patch the earliest wrong artifact & re-plan. Progress only counts at the boundary"]},
+  {node:"workers", edges:["e2"], log:["Re-execute","workers close the gap inside the same milestone"]},
+  {node:"testing", edges:["e4","e5"], log:["Re-validate","gate + milestone …"]},
+  {node:"seal", edges:["e7"], cls:"pass", log:["PASS ✓","both layers pass → milestone SEALED"]},
+  {node:"planning", edges:["e8"], log:["Next milestone","loop back into planning — until every gap is resolved"]},
+  {node:"seal", edges:[], cls:"pass", log:["Stopping discipline","no runnable work + evidence supports closure → end_mission + independent terminal review. Done — not overconfident"]},
+];
+
+/* ---------- render diagram ---------- */
+const svg = document.getElementById("arch");
+const defs = s("defs");
+["#8aa2cf","#3b6fd4","#6d5bd0","#b45cc9","#2a9d8f","#d1495b","#2fa36b","#d9a441"].forEach(c=>{
+  const id="ah"+c.slice(1);
+  const m=s("marker",{id,viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"});
+  m.appendChild(s("path",{d:"M0 0 L10 5 L0 10 z",fill:c})); defs.appendChild(m);
+});
+svg.appendChild(defs);
+const edgeLayer=s("g"), nodeLayer=s("g"), labelLayer=s("g");
+svg.appendChild(edgeLayer); svg.appendChild(nodeLayer); svg.appendChild(labelLayer);
+
+function anchor(ref){ // "id:side"
+  const [id,side]=ref.split(":"); const n=NODES[id];
+  const x0=n.cx-n.w/2, y0=n.cy-n.h/2;
+  return ({top:[n.cx,y0],bottom:[n.cx,y0+n.h],left:[x0,n.cy],right:[x0+n.w,n.cy]})[side];
+}
+const edgeEls={};
+EDGES.forEach(e=>{
+  let d=e.path;
+  if(!d && e.from){const [ax,ay]=anchor(e.from),[bx,by]=anchor(e.to); d=`M ${ax} ${ay} L ${bx} ${by}`;}
+  const ah="ah"+e.color.slice(1);
+  const p=s("path",{d,fill:"none",stroke:e.color,"stroke-width":"2.4","stroke-linecap":"round",
+    class:"flow", "marker-end":`url(#${ah})`, opacity:".85"});
+  if(e.arrowFrom!==false && e.id!=="spine"){}
+  edgeLayer.appendChild(p);
+  edgeEls[e.id]={path:p, def:e};
+  // label with measured background
+  const t=txt(0,0,e.label,{"font-family":MONO,"font-size":"12.5","font-weight":"600",fill:e.color,"text-anchor":"middle"});
+  labelLayer.appendChild(t);
+  // position at path midpoint
+  const len=p.getTotalLength(); const mid=p.getPointAtLength(len*0.5);
+  t.setAttribute("x",mid.x); t.setAttribute("y",mid.y+4);
+  const bb=t.getBBox();
+  const r=s("rect",{x:bb.x-6,y:bb.y-3,width:bb.width+12,height:bb.height+6,rx:6,fill:"#ffffff",opacity:".92",stroke:e.color,"stroke-opacity":".25"});
+  labelLayer.insertBefore(r,t);
+});
+
+const nodeEls={};
+Object.entries(NODES).forEach(([id,n])=>{
+  const g=s("g",{class:"node",tabindex:"0",role:"button","aria-label":n.title});
+  g.style.color=n.color;
+  const x0=n.cx-n.w/2, y0=n.cy-n.h/2, r=n.kind==="brand"||n.kind==="seal"?26:18;
+  let fill="#ffffff";
+  if(n.kind==="core") fill="url(#coreg)";
+  const rect=s("rect",{class:"box",x:x0,y:y0,width:n.w,height:n.h,rx:r,ry:r,
+    fill:fill, stroke:n.color, "stroke-width":n.kind==="core"?3:2});
+  if(n.kind==="core"){
+    if(!document.getElementById("coreg")){
+      const lg=s("linearGradient",{id:"coreg",x1:"0",y1:"0",x2:"1",y2:"1"});
+      lg.appendChild(s("stop",{offset:"0","stop-color":"#eaf1ff"}));
+      lg.appendChild(s("stop",{offset:".5","stop-color":"#e4f5f1"}));
+      lg.appendChild(s("stop",{offset:"1","stop-color":"#faf1dc"}));
+      defs.appendChild(lg);
+    }
+  }
+  // colored header strip
+  if(n.kind==="comp"||n.kind==="core"){
+    g.appendChild(s("rect",{x:x0,y:y0,width:n.w,height:34,rx:r,ry:r,fill:n.color,opacity:".14"}));
+  }
+  g.appendChild(rect);
+  const ty=n.kind==="comp"||n.kind==="core"? y0+23 : n.cy+ (n.kind==="brand"? 6:5);
+  g.appendChild(txt(n.cx,ty,n.title,{"text-anchor":"middle","font-family":MONO,
+    "font-size":n.kind==="brand"?"22":"15","font-weight":"800","letter-spacing":n.kind==="brand"?"3":"1",fill:n.color}));
+  // tiny subtitle line inside component nodes
+  if(n.kind==="comp"){
+    const words = {planning:["success criteria →","milestone graph → roles"],
+      workers:["feature-by-feature","mutable worker roster"],
+      skills:["reusable patterns →","shared knowledge base"],
+      testing:["gate: build·test·lint","milestone: evidence review"]}[id];
+    g.appendChild(txt(n.cx,n.cy+8,words[0],{"text-anchor":"middle","font-family":SANS,"font-size":"12.5",fill:"#3a4c6b"}));
+    g.appendChild(txt(n.cx,n.cy+28,words[1],{"text-anchor":"middle","font-family":SANS,"font-size":"12.5",fill:"#3a4c6b"}));
+  }
+  if(n.kind==="core"){
+    g.appendChild(txt(n.cx,n.cy+8,"central adaptive controller",{"text-anchor":"middle","font-family":SANS,"font-size":"12.5",fill:"#3a4c6b"}));
+    g.appendChild(txt(n.cx,n.cy+28,"variable state · picks one move / turn",{"text-anchor":"middle","font-family":SANS,"font-size":"12.5",fill:"#3a4c6b"}));
+  }
+  g.addEventListener("click",()=>select(id));
+  g.addEventListener("keydown",ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();select(id);}});
+  nodeLayer.appendChild(g);
+  nodeEls[id]=g;
+});
+
+/* ---------- detail panel ---------- */
+const D={k:document.getElementById("d-kicker"),t:document.getElementById("d-title"),
+  b:document.getElementById("d-body"),tags:document.getElementById("d-tags")};
+function select(id){
+  const n=NODES[id];
+  D.k.textContent=n.kicker; D.k.style.color=n.color;
+  D.t.textContent=n.title.replace("ZENITH","Zenith");
+  D.b.textContent=n.body;
+  D.tags.innerHTML="";
+  n.tags.forEach(t=>{const el=document.createElement("span");el.className="tag";el.textContent=t;
+    el.style.borderColor=n.color+"55";el.style.color=n.color;D.tags.appendChild(el);});
+  Object.entries(nodeEls).forEach(([k,g])=>{g.classList.toggle("active",k===id);g.classList.toggle("dim",k!==id);});
+  setTimeout(()=>Object.values(nodeEls).forEach(g=>g.classList.remove("dim")),1400);
+}
+
+/* ---------- run animation ---------- */
+const log=document.getElementById("log");
+let stepIdx=-1, timer=null, playing=false;
+const btnPlay=document.getElementById("play"), btnStep=document.getElementById("step"), btnReset=document.getElementById("reset");
+function clearHot(){Object.values(edgeEls).forEach(({path})=>{path.classList.remove("run");path.classList.remove("cool");});
+  Object.values(nodeEls).forEach(g=>{g.classList.remove("active","dim");});}
+function doStep(i){
+  const st=RUN[i]; if(!st)return;
+  log.hidden=false;
+  Object.values(nodeEls).forEach(g=>g.classList.add("dim"));
+  Object.entries(nodeEls).forEach(([k,g])=>{if(k===st.node){g.classList.remove("dim");g.classList.add("active");}});
+  Object.values(edgeEls).forEach(({path})=>{path.classList.remove("run");path.classList.add("cool");});
+  (st.edges||[]).forEach(id=>{const e=edgeEls[id];if(e){e.path.classList.add("run");e.path.classList.remove("cool");}});
+  const line=document.createElement("div");
+  line.className="l"+(st.cls?" "+st.cls:"");
+  line.innerHTML=`<b>${st.log[0]}</b> — ${st.log[1]}`;
+  log.appendChild(line); log.scrollTop=log.scrollHeight;
+  // reflect in detail panel too
+  select(st.node);
+  Object.values(nodeEls).forEach(g=>g.classList.remove("dim")); // keep others visible but current active
+  Object.entries(nodeEls).forEach(([k,g])=>{if(k!==st.node)g.classList.add("dim");});
+  btnReset.disabled=false;
+}
+function next(){ stepIdx++; if(stepIdx>=RUN.length){stop();return;} doStep(stepIdx); }
+function play(){ if(playing){pause();return;}
+  if(stepIdx>=RUN.length-1) resetRun();
+  playing=true; btnPlay.textContent="❚❚ Pause";
+  next(); timer=setInterval(()=>{ if(stepIdx>=RUN.length-1){pause();} else next(); },2100);
+}
+function pause(){playing=false;btnPlay.textContent="▶ Resume";clearInterval(timer);}
+function stop(){pause();btnPlay.textContent="▶ Run a mission";}
+function resetRun(){stop();stepIdx=-1;log.innerHTML="";log.hidden=true;clearHot();
+  Object.values(nodeEls).forEach(g=>g.classList.remove("dim","active"));btnReset.disabled=true;
+  btnPlay.textContent="▶ Run a mission";}
+btnPlay.onclick=play;
+btnStep.onclick=()=>{if(playing)pause();next();};
+btnReset.onclick=resetRun;
+
+/* ---------- benchmark chart ---------- */
+const METHODS=[
+  {name:"One-session",bk:"single agent",rank:5.00,cost:"$22.21",wins:"0 / 8",
+    str:"Cheapest, simplest baseline.",fail:"Premature completion; weak verification.",c:"#9aa7bd"},
+  {name:"Plan-RALPH",bk:"fixed work list",rank:4.00,cost:"$161.53",wins:"0 / 8",
+    str:"Clearer scope via a fixed list.",fail:"Upfront plan is hard to get right; false done labels.",c:"#7f8fb3"},
+  {name:"Milestone-RALPH",bk:"local plan + tester",rank:2.88,cost:"$209.47",wins:"0 / 8",
+    str:"Milestone planning + independent testing.",fail:"Not adaptive enough; can stall in milestone loops.",c:"#6d7fd0"},
+  {name:"RALPH",bk:"repeated gap-finding",rank:1.75,cost:"$407.58",wins:"3 / 8",
+    str:"Strong repeated gap-finding; solid test-time scaling.",fail:"Expensive rediscovery; weak stopping rule.",c:"#4f7fd6"},
+  {name:"Zenith",bk:"adaptive orchestration",rank:1.38,cost:"$175.68",wins:"5 / 8",
+    str:"Adaptive workers, testers, skills, plans + layered verification.",fail:"Higher complexity; fails if adaptation or testers are wrong.",c:"#2a9d8f"},
+];
+const bench=document.getElementById("bench");
+const worstRank=5.0;
+METHODS.forEach(m=>{
+  const row=document.createElement("div");row.className="brow";
+  const pct=Math.round((1-(m.rank-1)/(worstRank-1))*82)+18; // better rank -> longer bar
+  row.innerHTML=`<div class="bname">${m.name}<small>${m.bk}</small></div>
+    <div class="btrack"><div class="bfill" style="width:0;background:linear-gradient(90deg,${m.c},${m.c}cc)">rank ${m.rank.toFixed(2)}</div>
+    <div class="bcost">${m.cost}/task · ${m.wins}</div></div>`;
+  bench.appendChild(row);
+  requestAnimationFrame(()=>{row.querySelector(".bfill").style.width=pct+"%";});
+});
+const cmp=document.getElementById("cmpbody");
+[...METHODS].reverse().forEach(m=>{
+  const tr=document.createElement("tr"); if(m.name==="Zenith")tr.className="zenith";
+  tr.innerHTML=`<td><b>${m.name}</b><br><span style="color:var(--ink-soft);font-size:12px">${m.bk}</span></td>
+    <td class="num"><span class="rankbadge">${m.rank.toFixed(2)}</span></td>
+    <td class="num">${m.cost}</td><td class="num">${m.wins}</td><td>${m.str}</td><td>${m.fail}</td>`;
+  cmp.appendChild(tr);
+});
+
+/* ---------- decisions ---------- */
+const DEC=[
+  ["Continue","Runnable work remains and evidence is clean — dispatch the next task, keep the plan."],
+  ["Replan","Evidence changed the mission model — patch the earliest wrong artifact (contract, topology, method) and re-author the plan."],
+  ["Add worker","A capability gap appeared — define a new worker for that specific responsibility."],
+  ["Add tester","A new risk surfaced — add a validation layer that actually proves the assertion at stake."],
+  ["Synthesize skill","A worker found a reusable technique — register it into the shared knowledge base for future milestones."],
+  ["Reset strategy","The current approach is invalidated — reset topology rather than pushing on bad assumptions."],
+  ["Next milestone","Both validation layers passed — seal this boundary and advance the milestone graph."],
+  ["Stop","No runnable work + evidence supports closure — end the mission through an independent terminal review."],
+];
+const decWrap=document.getElementById("decisions");
+DEC.forEach((d,i)=>{const b=document.createElement("button");b.className="dchip"+(i===0?" on":"");
+  b.textContent=d[0];b.onclick=()=>{document.querySelectorAll(".dchip").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");document.getElementById("dec-t").textContent=d[0];document.getElementById("dec-b").textContent=d[1];};
+  decWrap.appendChild(b);});
+
+/* ---------- tabs ---------- */
+document.getElementById("tabs").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-tab]"); if(!b)return;
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("active",x===b));
+  document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.id==="tab-"+b.dataset.tab));
+});
+
+/* default selection */
+select("orchestrator");
+</script>
+</body>
+</html>
